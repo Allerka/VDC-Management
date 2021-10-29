@@ -1,0 +1,9 @@
+{
+  "public": "/home/hudson/vdc-management/frontend/build/",
+  "rewrites": [
+    {
+      "source": "/vdc/management/**",
+      "destination": "/vdc/management/index.html"
+    }
+  ]
+}
