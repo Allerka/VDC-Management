@@ -32,6 +32,7 @@ from decimal import *
 
 logger = logging.getLogger(__name__)
 
+# Main response view
 class IndexView(TemplateView):
 	template_name = "react/index.html"
 
@@ -62,9 +63,11 @@ class APIView(ObjectMultipleModelAPIView):
 		try:
 			user = User.objects.get(username__icontains=str(request.user))
 			admin = user.is_superuser
+
+			# Get vehicle info
 			if request.method == 'GET':
 				choices = fieldChoices()
-				if int(id) == 0:
+				if int(id) == 0: # Front page table
 					if user.is_superuser:
 						data = DataHandler.objects.filter(active=True).exclude(status='ARCHIVE')
 						archive = DataHandler.objects.filter(active=True).filter(status='ARCHIVE')
@@ -81,7 +84,7 @@ class APIView(ObjectMultipleModelAPIView):
 					for entry in archiveSerializer.data:
 						entry['status'] = fixLabel(entry, 'status')
 					response.content = json.dumps({'data': dataSerializer.data, 'archive': archiveSerializer.data, 'admin': admin, 'choices': choices})
-				else:
+				else: # Specific vehicle info
 					data = DataHandler.objects.filter(id=int(id))
 					serializer = DataReaderSerializer(data, context={'request': request}, many=True)
 					if serializer.data[0]['anyone']:
@@ -98,6 +101,7 @@ class APIView(ObjectMultipleModelAPIView):
 					response.content = json.dumps({'data': serializer.data, 'choices': choices, 'admin': admin})
 				return response
 
+			# Submitting vehicle/test data
 			elif request.method == 'POST':
 				logger.info(request.data)
 				try:
@@ -105,7 +109,7 @@ class APIView(ObjectMultipleModelAPIView):
 						data = DataHandler.objects.all()
 						data_handler = post_data(request.data)
 						serializer = DataHandlerSerializer(data, data=data_handler[0], allow_null=True)
-				except KeyError:
+				except KeyError: # It's a test, not a vehicle
 					# if request.data['procedure']:
 					data = Tests.objects.all()
 					data_handler = post_data(request.data)
@@ -121,6 +125,7 @@ class APIView(ObjectMultipleModelAPIView):
 					response.status_code = status.HTTP_400_BAD_REQUEST
 				return response
 
+			# Editing/deleting vehicle data
 			logger.info("PUT/DELETE detected!")
 			try:
 				vehicle = DataHandler.objects.get(test_name=request.data['test_name'])
@@ -171,7 +176,7 @@ class APIView(ObjectMultipleModelAPIView):
 			response['message'] = e
 		return response
 		
-
+	# Uploading spreadsheets
 	@api_view(['POST'])
 	def file_upload(request):
 		response = HttpResponse()
@@ -206,6 +211,7 @@ class APIView(ObjectMultipleModelAPIView):
 				response['message'] = e
 		return response
 
+	# Editing vehicle status info
 	@api_view(['GET', 'POST'])
 	def submission_admin(request):
 		response = HttpResponse()
@@ -238,6 +244,7 @@ class APIView(ObjectMultipleModelAPIView):
 			response.status_code = status.HTTP_403_FORBIDDEN
 		return response
 
+	# Frontend interface for editing form choices
 	@api_view(['GET', 'POST', 'DELETE'])
 	def data_admin(request):
 		response = HttpResponse()
@@ -282,6 +289,7 @@ class APIView(ObjectMultipleModelAPIView):
 			response.status_code = status.HTTP_403_FORBIDDEN
 		return response
 
+	# Viewing the changelog in the frontend
 	@api_view(['GET'])
 	def changelog(request):
 		logs = []
@@ -307,6 +315,7 @@ class APIView(ObjectMultipleModelAPIView):
 					pass
 		return Response({'data': logs})
 
+	# Downloading a spreadsheet of a partially-completed submission form
 	@api_view(['POST'])
 	def save_draft(request):
 		response = HttpResponse()
@@ -325,6 +334,7 @@ class APIView(ObjectMultipleModelAPIView):
 			response.status_code = status.HTTP_400_BAD_REQUEST
 		return response
 
+	# Basic authorization check for certain frontend processes
 	@api_view(['GET'])
 	def active_check(request):
 		response = HttpResponse()
@@ -335,6 +345,7 @@ class APIView(ObjectMultipleModelAPIView):
 			response.status_code = status.HTTP_403_FORBIDDEN
 		return response
 	
+	# Special function for getting the length of a given test procedure type
 	@api_view(['POST'])
 	def flow_rate(request):
 		response = HttpResponse()
@@ -342,7 +353,7 @@ class APIView(ObjectMultipleModelAPIView):
 		response['length'] = procedure.length
 		return response
 
-
+# Parsing uploaded data
 def post_data(data):
 	try:
 		data_handler = [{'spreadsheet': data['spreadsheet'], 'status': 'SUBMIT'}]
@@ -378,6 +389,7 @@ def post_data(data):
 		pass
 	return data_handler
 
+# Send emails
 def sendEmail(recipients, testName, status, comments, username, email):
 	timestamp = datetime.date.today().strftime("%Y-%m-%d")
 	try:
@@ -400,6 +412,7 @@ def sendEmail(recipients, testName, status, comments, username, email):
 		logger.error(e)
 	return
 
+# Retrieve field choices from the database
 def fieldChoices():
 	choices = {'vehicle': {}}
 	fields = FieldChoices.objects.values_list('field_name', flat=True).distinct()
@@ -412,6 +425,7 @@ def fieldChoices():
 		choices['vehicle'][str(vehicle.test_name)] = vehicle.test_name
 	return choices
 
+# Listing all choices for frontend editing
 def fieldChoicesList():
 	choices = []
 	for entry in FieldChoices.objects.all():
@@ -424,9 +438,11 @@ def fieldChoicesList():
 		choices.append(results)
 	return choices
 
+# Fixes random issues with labels
 def fixLabel(data, field):
 	return FieldChoices.objects.filter(value=data[field]).values_list("label", flat=True)[0]
 
+# Retrieves an error code from the database
 def getError(data):
 	message = ''
 	# logger.info(data.__class__.__name__)
